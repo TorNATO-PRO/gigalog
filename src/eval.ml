@@ -2,15 +2,20 @@ open Ast
 
 module IntMap = Map.Make (Int)
 module PMap = Map.Make (String)
+
+module TupleSet = Set.Make(struct
+  type t = atom list
+  let compare = Stdlib.compare
+end)
+
 type tuple  = atom list
-type db     = tuple list PMap.t
+type db     = TupleSet.t PMap.t
 
 let empty_db : db = PMap.empty
 
-let insert_fact (pred : string) (tup : tuple) (d : db) : db =
-  let bucket = Option.value ~default:[] (PMap.find_opt pred d) in
-  if List.exists ((=) tup) bucket then d
-  else PMap.add pred (tup :: bucket) d
+let insert_fact (pred : string) (tup : atom list) (d : db) : db =
+  let bucket = Option.value ~default:TupleSet.empty (PMap.find_opt pred d) in
+  PMap.add pred (TupleSet.add tup bucket) d
 
 let insert_facts pred tuples d =
   List.fold_left (fun db t -> insert_fact pred t db) d tuples
@@ -20,7 +25,7 @@ let all_facts d =
   |> List.concat_map (fun (p,ts) ->
          List.map (fun args -> (p,args)) ts)
         
-let pp_db d =
+let pp_db (d: db) =
     d
     |> PMap.bindings
     |> List.sort (fun (name1, _) (name2, _) -> compare name1 name2)
@@ -28,7 +33,7 @@ let pp_db d =
          List.map (fun args ->
            Printf.sprintf "%s(%s)" name
              (String.concat "," (List.map Ast_printer.string_of_atom args))
-         ) tuples
+         ) (TupleSet.elements tuples)
        )
     |> List.flatten
     |> List.sort String.compare
@@ -92,7 +97,7 @@ let matches (d : db) (pred : predicate) : Subst.subst list =
   match PMap.find_opt pred.name d with
   | None -> []
   | Some tuples ->
-      tuples
+      TupleSet.elements tuples
       |> List.filter_map (fun tup ->
             Subst.unify_opt pred.args tup)
 
@@ -126,7 +131,7 @@ let active_constants (d : db) : atom list =
             | Const c -> Some (Const c)
             | Str  s -> Some (Str s)
             | Var _  -> None))
-          tuples)
+          (TupleSet.elements tuples))
   |> List.sort_uniq Stdlib.compare
 
 let cartesian_substs vars consts =
