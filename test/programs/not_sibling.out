@@ -1,0 +1,7 @@
+nonsibling(alice,charlie)
+nonsibling(charlie,alice)
+parent(bob,alice)
+parent(bob,charlie)
+same(alice,alice)
+same(bob,bob)
+same(charlie,charlie)

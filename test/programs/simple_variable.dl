@@ -1,0 +1,4 @@
+parent(john, mary).
+parent(mary, bob).
+
+has_child(X) :- parent(X, Y).

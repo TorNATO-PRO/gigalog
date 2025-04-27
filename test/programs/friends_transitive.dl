@@ -1,0 +1,6 @@
+friend(alice, bob).
+friend(bob, carol).
+friend(carol, dave).
+
+connected(X, Y) :- friend(X, Y).
+connected(X, Y) :- friend(X, Z), connected(Z, Y).

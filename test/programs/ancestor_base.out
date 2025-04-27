@@ -1,0 +1,4 @@
+ancestor(john,mary)
+ancestor(mary,bob)
+parent(john,mary)
+parent(mary,bob)

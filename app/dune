@@ -1,0 +1,6 @@
+(executable
+ (name gigalog)
+ (public_name gigalog)
+ (modules gigalog)
+ (libraries gigaloglib base)
+ (preprocess (pps ppx_deriving.show)))

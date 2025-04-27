@@ -1,0 +1,4 @@
+has_child(john)
+has_child(mary)
+parent(john,mary)
+parent(mary,bob)

@@ -1,0 +1,6 @@
+parent(bob,alice).
+parent(bob,charlie).
+
+nonsibling(X,Y) :- parent(P,X), parent(P,Y), not same(X,Y).
+
+same(X,X).

@@ -1,0 +1,9 @@
+link(a, b).
+link(b, c).
+link(c, d).
+link(d, e).
+
+path(X, Y) :- link(X, Y).
+path(X, Y) :- step(X, Y).
+
+step(X, Y) :- link(X, Z), path(Z, Y).

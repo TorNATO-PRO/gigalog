@@ -1,0 +1,3 @@
+a(bob).
+
+c(bob) :- a(bob), not b(bob).

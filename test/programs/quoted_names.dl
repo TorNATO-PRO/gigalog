@@ -1,0 +1,5 @@
+parent("John Smith", "Mary Jane").
+parent("Mary Jane", "Bobby").
+
+ancestor(X, Y) :- parent(X, Y).
+ancestor(X, Y) :- parent(X, Z), ancestor(Z, Y).

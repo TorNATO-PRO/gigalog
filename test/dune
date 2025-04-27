@@ -1,0 +1,13 @@
+(test
+ (name test_runner)
+ (modules test_runner)
+ (libraries gigaloglib base)
+ (preprocess (pps ppx_deriving.show))
+ (deps
+   (glob_files programs/*.dl)
+   (glob_files programs/*.out))
+ (enabled_if (= %{profile} "dev"))
+ (action
+    (setenv TEST_ROOT %{project_root}
+      (run %{exe:test_runner.exe})))
+)

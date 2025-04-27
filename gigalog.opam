@@ -1,0 +1,17 @@
+opam-version: "2.0"
+name: "gigalog"
+version: "0.1.0"
+synopsis: "Gigalog: a simple Datalog engine"
+description: """
+Gigalog is a minimal Datalog engine supporting fixpoint evaluation and stratified negation.
+"""
+maintainer: "waltznr@gmail.com"
+authors: "Nathan Waltz"
+license: "MIT"
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+]
+depends: [
+  "dune" {>= "3.0"}
+  "base"
+]

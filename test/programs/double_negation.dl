@@ -1,0 +1,4 @@
+a(bob).
+
+c(bob) :- a(bob), not not_a(bob).
+not_a(X) :- not a(X).

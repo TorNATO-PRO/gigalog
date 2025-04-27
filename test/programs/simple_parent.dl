@@ -1,0 +1,3 @@
+parent(john, mary).
+parent(mary, bob).
+parent(bob, alice).

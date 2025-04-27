@@ -1,0 +1,11 @@
+(library
+  (name gigaloglib)
+  (modules lexer parser ast ast_printer dependency semantic subst eval)
+  (libraries base)
+  (preprocess (pps ppx_deriving.show)))
+
+(menhir
+  (modules parser))
+
+(ocamllex
+  (modules lexer))

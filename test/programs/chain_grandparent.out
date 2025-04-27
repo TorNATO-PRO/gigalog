@@ -1,0 +1,3 @@
+grandparent(john,bob)
+parent(john,mary)
+parent(mary,bob)

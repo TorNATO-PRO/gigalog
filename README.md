@@ -1,2 +1,3 @@
 # gigalog
-A datalog subset, written to learn more about datalog evaluation.
+
+Gigalog is a minimal Datalog engine supporting fixpoint evaluation and stratified negation.

@@ -1,0 +1,5 @@
+ancestor("John Smith","Bobby")
+ancestor("John Smith","Mary Jane")
+ancestor("Mary Jane","Bobby")
+parent("John Smith","Mary Jane")
+parent("Mary Jane","Bobby")

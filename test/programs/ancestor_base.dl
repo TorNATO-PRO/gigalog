@@ -1,0 +1,4 @@
+parent(john, mary).
+parent(mary, bob).
+
+ancestor(X, Y) :- parent(X, Y).
