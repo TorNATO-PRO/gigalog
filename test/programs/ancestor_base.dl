@@ -1,4 +1,9 @@
 parent(john, mary).
-parent(mary, bob).
+parent(mary, bob). % I am an inline comment
 
+% I am a comment
+
+/*
+  I am a multiline comment.
+*/
 ancestor(X, Y) :- parent(X, Y).
