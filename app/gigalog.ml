@@ -48,36 +48,6 @@ let parse_file filename =
     in
     new_facts @ prog
 
-
-
-(* (* let read_file filename =
-  let ic = open_in filename in
-  let n = in_channel_length ic in
-  let s = really_input_string ic n in
-  close_in ic;
-  s *)
-
-let read_facts factsLocation =
-  let file_input = read_file factsLocation in
-  let newline_re = Str.regexp "\r?\n" in
-  let comma_re = Str.regexp "[ \t]*,[ \t]*" in
-  file_input
-  |> Str.split newline_re
-  |> List.filter (fun line -> String.trim line <> "")
-  |> List.map (Str.split comma_re)
-
-let process_input program =
-  Ast.input_predicates program
-  |> List.concat_map (fun pred -> 
-      let facts = read_facts pred.path in
-      List.map (fun fact -> Ast.Fact { name = pred.name; args = fact }) facts
-      
-    )
-
- *)
-(* let extend_program_with_facts program facts =
-  facts :: program *)
-
 let output_db_to_file pred set =
   let buffer = Buffer.create 1024 in
 
