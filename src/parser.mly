@@ -40,6 +40,7 @@ fact:
     }
 
 rule:
+  | predicate COLON_DASH DOT { Rule ($1, []) }
   | predicate COLON_DASH body DOT { Rule ($1, $3) }
 
 predicate:
