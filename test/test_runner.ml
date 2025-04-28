@@ -57,10 +57,10 @@ let parse_file name =
       failwith (Printf.sprintf "Parse error in %s at line %d, col %d"
                   name pos.pos_lnum (pos.pos_cnum - pos.pos_bol))
 
-let run_test name : bool =
+let run_test pool name : bool =
   print_endline "";
   let prog = parse_file name in
-  let db = Eval.eval_program prog in
+  let db = Eval.eval_program pool prog in
   let output = Eval.pp_db db |> String.trim in
   let expected = read_file (path_in_test name ".out") |> String.trim in
   if output = expected then begin
@@ -93,8 +93,15 @@ let tests = [
 
 (* Main runner *)
 let () =
-  let results = List.map run_test tests in
-  if List.for_all (fun passed -> passed) results then
+  let pool = Domainslib.Task.setup_pool ~num_domains:((Domain.recommended_domain_count ()) - 1) () in
+  let result = Domainslib.Task.run pool (fun (_a: unit): bool ->
+    let results = List.map (run_test pool) tests in
+    List.for_all (fun passed -> passed) results
+  ) in
+  Domainslib.Task.teardown_pool pool;
+  if result then
     exit 0
   else
     exit 1
+
+  

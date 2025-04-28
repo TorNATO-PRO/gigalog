@@ -63,8 +63,10 @@ let output_db_to_file pred set =
   
       
 let execute_program program =
-  let db = Eval.eval_program program in
+  let pool = Domainslib.Task.setup_pool ~num_domains:((Domain.recommended_domain_count ()) - 1) () in
+  let db = Domainslib.Task.run pool (fun (_a: unit): Eval.db -> Eval.eval_program pool program) in
   let output_preds = Ast.output_predicates program in
+  Domainslib.Task.teardown_pool pool;
 
   List.iter (fun pred ->
     match Eval.PMap.find_opt pred db with

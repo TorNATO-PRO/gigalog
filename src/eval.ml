@@ -97,27 +97,35 @@ let freshen_clause id = function
     (Rule (head', body'), id2)
 
 
+let parallel_filter_map pool f xs =
+  let results = Array.make (List.length xs) None in
+  Domainslib.Task.parallel_for pool ~start:0 ~finish:(List.length xs - 1) ~body:(fun i ->
+    let x = List.nth xs i in
+    results.(i) <- f x
+  );
+  Array.to_list results |> List.filter_map Fun.id
+
 (* --- The heart of our datalog engine --- *)
 
-let matches (d : db) (pred : predicate) : Subst.subst list =
+let matches (pool: Domainslib.Task.pool) (d : db) (pred : predicate) : Subst.subst list =
   match PMap.find_opt pred.name d with
   | None -> []
   | Some tuples ->
       TupleSet.elements tuples
-      |> List.filter_map (fun tup ->
+      |> parallel_filter_map pool (fun tup ->
             Subst.unify_opt pred.args tup)
 
-let join db acc_substs lits =
+let join (pool: Domainslib.Task.pool) db acc_substs lits =
   List.fold_left (fun acc_substs lit ->
     let step theta =
       match lit with
       | Pos atom ->
           let atom' = { atom with args = Subst.apply_atoms theta atom.args } in
-          matches db atom'
-          |> List.filter_map (fun theta' -> Subst.merge theta theta' |> Result.to_option)
+          matches pool db atom'
+          |> parallel_filter_map pool (fun theta' -> Subst.merge theta theta' |> Result.to_option)
       | Neg atom ->
           let atom' = { atom with args = Subst.apply_atoms theta atom.args } in
-          if matches db atom' = [] then
+          if matches pool db atom' = [] then
             [theta]
           else
             []
@@ -166,10 +174,10 @@ let fire_empty_rule (db : db) (head : predicate) : db =
     insert_fact head.name grounded_args db
   ) db substs
 
-let fire_rule db clause : db =
+let fire_rule (pool: Domainslib.Task.pool) db clause : db =
   match clause with
    | Rule (head, body) -> 
-      let substs = join db [ [] ] body in
+      let substs = join pool db [ [] ] body in
       let tuples =
         List.map (fun theta -> Subst.apply_atoms theta head.args) substs
       in
@@ -177,10 +185,10 @@ let fire_rule db clause : db =
   | Fact _ ->
   invalid_arg "fire_rule: expected Rule, got Fact"
 
-let fire_clause d = function
+let fire_clause (pool: Domainslib.Task.pool) d = function
   | Fact p        -> insert_fact p.name p.args d
   | Rule (head, []) -> fire_empty_rule d head
-  | Rule _ as r   -> fire_rule d r
+  | Rule _ as r   -> fire_rule pool d r
 
 
 (* --- Until we hit a fixpoint -- **)
@@ -225,19 +233,19 @@ let print_clause_groups (groups : clause list IntMap.t) : unit =
       print_endline ""
     )
 
-let rec fixpoint_stratum (clauses : clause list) (d : db) : db =
+let rec fixpoint_stratum (pool: Domainslib.Task.pool) (clauses : clause list) (d : db) : db =
   let (d', _) =
     List.fold_left (fun (db, id) clause ->
       let (cl', id') = freshen_clause id clause in
-      (fire_clause db cl', id')
+      (fire_clause pool db cl', id')
     ) (d, 0) clauses
   in
   if d' = d then
     d
   else
-    fixpoint_stratum clauses d'
+    fixpoint_stratum pool clauses d'
 
-let eval_program (prog : program) : db =
+let eval_program (pool: Domainslib.Task.pool) (prog : program) : db =
   let clauses' = clauses prog in
   let graph = Dependency.build_graph prog in
   match Dependency.check_stratification graph with
@@ -247,5 +255,5 @@ let eval_program (prog : program) : db =
       let clause_groups = group_by_stratum clauses' stratum_of in
       let strata = IntMap.bindings clause_groups |> List.sort (fun (s1, _) (s2, _) -> compare s1 s2) in
       List.fold_left (fun db (_stratum, clauses) ->
-        fixpoint_stratum clauses db
+        fixpoint_stratum pool clauses db
       ) empty_db strata
