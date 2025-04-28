@@ -2,7 +2,7 @@
 
 Gigalog is a minimal Datalog engine supporting fixpoint evaluation and stratified negation.
 
-It provides an interpreter which supports wildcards, negation, strings and constants. It also supports input and output statements, as well as recursion and mutual recursion.
+It provides an interpreter which supports wildcards, negation, strings and constants. It also supports input and output statements, comments, as well as recursion and mutual recursion.
 
 Later on I plan to add support for integers and comparison operators to facilitate more useful programming.
 
