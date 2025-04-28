@@ -6,6 +6,7 @@ rule read = parse
   | '\n' { Lexing.new_line lexbuf; read lexbuf }
   | "not" { NOT }
   | "~" { NOT }
+  | "output" { OUTPUT }
   | [' ' '\t' '\r'] { read lexbuf }
   | '%' [^ '\n']* { read lexbuf }
   | "/*" { comment lexbuf }

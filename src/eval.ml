@@ -231,13 +231,14 @@ let rec fixpoint_stratum (clauses : clause list) (d : db) : db =
   else
     fixpoint_stratum clauses d'
 
-let eval_program (prog : clause list) : db =
+let eval_program (prog : program) : db =
+  let clauses' = clauses prog in
   let graph = Dependency.build_graph prog in
   match Dependency.check_stratification graph with
   | Error msg -> failwith ("Stratification error: " ^ msg)
   | Ok () ->
       let stratum_of = Dependency.stratify graph in
-      let clause_groups = group_by_stratum prog stratum_of in
+      let clause_groups = group_by_stratum clauses' stratum_of in
       let strata = IntMap.bindings clause_groups |> List.sort (fun (s1, _) (s2, _) -> compare s1 s2) in
       List.fold_left (fun db (_stratum, clauses) ->
         fixpoint_stratum clauses db

@@ -4,7 +4,7 @@ open Ast
 
 %token <string> IDENT
 %token <string> STRING
-%token LPAREN RPAREN COMMA COLON_DASH DOT NOT
+%token LPAREN RPAREN COMMA COLON_DASH DOT NOT OUTPUT
 %token EOF
 
 %start program
@@ -13,15 +13,19 @@ open Ast
 %%
 
 program: 
-  | clauses EOF { $1 }
+  | statements EOF { $1 }
 
-clauses:
+statements:
   | { [] }
-  | clause clauses { $1 :: $2 } 
+  | clause statements { (Clause $1) :: $2 }
+  | output statements { (Output $1) :: $2 }
 
 clause: 
   | fact { $1 }
   | rule { $1 }
+
+output:
+  | OUTPUT IDENT DOT { $2 }
 
 fact:
   | predicate DOT {

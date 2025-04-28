@@ -21,5 +21,11 @@ let string_of_clause = function
     let body_str = String.concat ", " (List.map string_of_literal body) in
     Printf.sprintf "Rule: %s :- %s." (string_of_predicate head) body_str
 
+let string_of_output o = "Output Statement: " ^ o
+
+let string_of_statement = function
+  | Clause c -> string_of_clause c
+  | Output o -> string_of_output o
+
 let string_of_program (prog : program) =
-  String.concat "\n" (List.map string_of_clause prog)
+  String.concat "\n" (List.map string_of_statement prog)
