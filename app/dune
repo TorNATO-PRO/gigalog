@@ -2,5 +2,5 @@
  (name gigalog)
  (public_name gigalog)
  (modules gigalog)
- (libraries gigaloglib base)
+ (libraries gigaloglib base str)
  (preprocess (pps ppx_deriving.show)))
