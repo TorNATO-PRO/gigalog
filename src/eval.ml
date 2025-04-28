@@ -101,24 +101,24 @@ let matches (d : db) (pred : predicate) : Subst.subst list =
       |> List.filter_map (fun tup ->
             Subst.unify_opt pred.args tup)
 
-let rec join d acc_substs = function
-  | [] -> acc_substs
-  | lit :: rest ->
-      let step theta =
-        match lit with
-        | Pos atom ->
-            let atom' = { atom with args = Subst.apply_atoms theta atom.args } in
-            matches d atom'
-            |> List.filter_map (fun theta' -> Subst.merge theta theta' |> Result.to_option)
-        | Neg atom ->
-            let atom' = { atom with args = Subst.apply_atoms theta atom.args } in
-            if matches d atom' = [] then
-              [theta]  (* negation succeeds if no matches *)
-            else
-              []
-      in
-      let substs' = List.concat_map step acc_substs in
-      join d substs' rest
+let join db acc_substs lits =
+  List.fold_left (fun acc_substs lit ->
+    let step theta =
+      match lit with
+      | Pos atom ->
+          let atom' = { atom with args = Subst.apply_atoms theta atom.args } in
+          matches db atom'
+          |> List.filter_map (fun theta' -> Subst.merge theta theta' |> Result.to_option)
+      | Neg atom ->
+          let atom' = { atom with args = Subst.apply_atoms theta atom.args } in
+          if matches db atom' = [] then
+            [theta]
+          else
+            []
+    in
+    List.concat_map step acc_substs
+  ) acc_substs lits
+
 
 (* --- Small-step evaluation --- *)
 
