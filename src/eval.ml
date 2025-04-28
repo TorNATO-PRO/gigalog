@@ -46,14 +46,20 @@ let fresh_name (base : string) (id : int) : string =
   base ^ "#" ^ string_of_int id
 
 let freshen_atom env next_id = function
-  | Var v -> 
-    begin match List.assoc_opt v env with
-    | Some v' -> (Var v', env, next_id)
-    | None ->
+  | Var v ->
+    if v = "_" then
+      (* Handle wildcards *)
       let v' = fresh_name v next_id in
       let env = (v, v') :: env in
       (Var v', env, next_id + 1)
-    end
+    else
+      begin match List.assoc_opt v env with
+      | Some v' -> (Var v', env, next_id)
+      | None ->
+        let v' = fresh_name v next_id in
+        let env = (v, v') :: env in
+        (Var v', env, next_id + 1)
+      end
   | (Const _ | Str _) as c -> (c, env, next_id)
 
 let freshen_atoms env next_id args =
