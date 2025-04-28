@@ -1,6 +1,6 @@
 # gigalog
 
-Gigalog is a minimal Datalog engine supporting fixpoint evaluation and stratified negation.
+Gigalog is a minimal parallel Datalog engine supporting fixpoint evaluation and stratified negation.
 
 It provides an interpreter which supports wildcards, negation, strings and constants. It also supports input and output statements, comments, as well as recursion and mutual recursion.
 
