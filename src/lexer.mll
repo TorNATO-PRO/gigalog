@@ -7,6 +7,7 @@ rule read = parse
   | "not" { NOT }
   | "~" { NOT }
   | "output" { OUTPUT }
+  | "input" { INPUT }
   | [' ' '\t' '\r'] { read lexbuf }
   | '%' [^ '\n']* { read lexbuf }
   | "/*" { comment lexbuf }

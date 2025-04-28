@@ -54,4 +54,14 @@ let () =
   end;
   let filename = Sys.argv.(1) in
   let program = parse_file filename in
-  execute_program program
+  let semanticErrors = Semantic.errors program in
+  if List.is_empty semanticErrors then begin
+    execute_program program;
+    print_endline "Processed program successfully"
+  end else begin
+    print_endline "Errors found, please correct them";
+    List.iter (fun err ->
+      print_string "> ";
+      print_endline err
+    ) semanticErrors
+  end

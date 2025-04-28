@@ -4,7 +4,7 @@ open Ast
 
 %token <string> IDENT
 %token <string> STRING
-%token LPAREN RPAREN COMMA COLON_DASH DOT NOT OUTPUT
+%token LPAREN RPAREN COMMA COLON_DASH DOT NOT OUTPUT INPUT
 %token EOF
 
 %start program
@@ -19,13 +19,17 @@ statements:
   | { [] }
   | clause statements { (Clause $1) :: $2 }
   | output statements { (Output $1) :: $2 }
+  | input statements { (Input $1) :: $2 }
 
 clause: 
   | fact { $1 }
   | rule { $1 }
 
+input:
+  | DOT INPUT IDENT LPAREN STRING RPAREN { { name = $3; path = $5 }}
+
 output:
-  | OUTPUT IDENT DOT { $2 }
+  | DOT OUTPUT IDENT { $3 }
 
 fact:
   | predicate DOT {
@@ -47,7 +51,9 @@ args:
 
 atom:
   | id = IDENT {
-     if Char.uppercase_ascii id.[0] = id.[0] then
+     if id = "_" then
+       Var id
+     else if Char.uppercase_ascii id.[0] = id.[0] then
        Var id
      else
        Const id

@@ -1,7 +1,10 @@
 type program = statement list
 
+and input = { name : string; path : string }
+
 and statement =
   | Output of string
+  | Input of input
   | Clause of clause 
 
 and clause =
@@ -28,5 +31,11 @@ let clauses (prog: program): clause list = List.filter_map (
 let output_predicates (prog: program): string list = List.filter_map (
   function 
     | Output o -> Some o
+    | _ -> None
+  ) prog
+
+let input_predicates (prog: program): input list  = List.filter_map (
+  function 
+    | Input i -> Some i
     | _ -> None
   ) prog

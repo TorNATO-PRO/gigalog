@@ -23,9 +23,12 @@ let string_of_clause = function
 
 let string_of_output o = "Output Statement: " ^ o
 
+let string_of_input (i: input) = "Output Statement: [" ^ i.name ^ " at path " ^ i.path ^ "]"
+
 let string_of_statement = function
   | Clause c -> string_of_clause c
   | Output o -> string_of_output o
+  | Input i -> string_of_input i
 
 let string_of_program (prog : program) =
   String.concat "\n" (List.map string_of_statement prog)
