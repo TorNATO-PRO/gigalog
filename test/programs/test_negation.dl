@@ -1,0 +1,5 @@
+negate(X, Y) :- Y = -X.
+
+negate(5, -5).
+negate(-8, 8).
+negate(0, 0).

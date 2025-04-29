@@ -1,0 +1,4 @@
+combined(X, Y, Z) :- Z = (X + Y) * (X - Y).
+combined(5, 3, 16).
+combined(10, 2, 96).
+combined(7, 4, 33).

@@ -1,0 +1,5 @@
+power(X, Y, Z) :- Z = X ^ Y.
+
+power(2, 3, 8).
+power(5, 2, 25).
+power(3, 3, 27).
