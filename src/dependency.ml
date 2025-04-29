@@ -22,6 +22,7 @@ let build_graph (prog : program) : dependency_graph =
           match lit with
           | Pos p -> add_edge head.name PosEdge p.name g
           | Neg p -> add_edge head.name NegEdge p.name g
+          | _ -> g
         ) g body
   ) empty_graph (clauses prog)
 

@@ -1,6 +1,6 @@
 (library
   (name gigaloglib)
-  (modules lexer parser ast ast_printer dependency facts_parser facts_lexer semantic subst eval)
+  (modules lexer parser ast ast_printer dependency facts_parser facts_lexer semantic subst eval expr)
   (libraries base domainslib)
   (preprocess (pps ppx_deriving.show)))
 

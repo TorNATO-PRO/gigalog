@@ -4,6 +4,7 @@ open Ast
 
 %token <string> IDENT
 %token <string> STRING
+%token <int> INT
 %token COMMA
 %token EOF
 
@@ -33,6 +34,7 @@ atom:
       else if Char.uppercase_ascii id.[0] = id.[0] then
         Var id
       else
-        Const id
+        Sym id
     }
   | s = STRING { Str s }
+  | i = INT { Int i }

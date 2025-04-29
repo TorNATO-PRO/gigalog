@@ -45,6 +45,63 @@ let pp_db (d: db) =
 let fresh_name (base : string) (id : int) : string =
   base ^ "#" ^ string_of_int id
 
+let rec freshen_expr env id expr =
+  match expr with
+  | EConst _ -> (expr, env, id)
+  | EVar v ->
+      begin match List.assoc_opt v env with
+      | Some v' -> (EVar v', env, id)
+      | None ->
+          let v' = fresh_name v id in
+          (EVar v', (v, v') :: env, id + 1)
+      end
+  | EAdd (e1, e2) ->
+      let (e1', env1, id1) = freshen_expr env id e1 in
+      let (e2', env2, id2) = freshen_expr env1 id1 e2 in
+      (EAdd (e1', e2'), env2, id2)
+  | ESub (e1, e2) ->
+      let (e1', env1, id1) = freshen_expr env id e1 in
+      let (e2', env2, id2) = freshen_expr env1 id1 e2 in
+      (ESub (e1', e2'), env2, id2)
+  | EMul (e1, e2) ->
+      let (e1', env1, id1) = freshen_expr env id e1 in
+      let (e2', env2, id2) = freshen_expr env1 id1 e2 in
+      (EMul (e1', e2'), env2, id2)
+  | EDiv (e1, e2) ->
+      let (e1', env1, id1) = freshen_expr env id e1 in
+      let (e2', env2, id2) = freshen_expr env1 id1 e2 in
+      (EDiv (e1', e2'), env2, id2)
+  | EPow (e1, e2) ->
+      let (e1', env1, id1) = freshen_expr env id e1 in
+      let (e2', env2, id2) = freshen_expr env1 id1 e2 in
+      (EPow (e1', e2'), env2, id2)
+  | ENeg e ->
+      let (e', env', id') = freshen_expr env id e in
+      (ENeg e', env', id')
+
+let int_nth_root (c : int) (n : int) : int option =
+  if n < 0 then None else
+  let rec try_root r =
+    let rec pow a k =
+      if k = 0 then 1
+      else a * pow a (k - 1)
+    in
+    let p = pow r n in
+    if p = c then Some r
+    else if p > c then None
+    else try_root (r + 1)
+  in
+  try_root 0
+
+let int_log (c : int) (b : int) : int option =
+  if b <= 1 || c < 1 then None else
+  let rec aux k acc =
+    if acc = c then Some k
+    else if acc > c then None
+    else aux (k + 1) (acc * b)
+  in
+  aux 0 1
+
 let freshen_atom env next_id = function
   | Var v ->
     if v = "_" then
@@ -60,7 +117,8 @@ let freshen_atom env next_id = function
         let env = (v, v') :: env in
         (Var v', env, next_id + 1)
       end
-  | (Const _ | Str _) as c -> (c, env, next_id)
+  | (Sym _ | Str _) as c -> (c, env, next_id)
+  | a -> (a, env, next_id)
 
 let freshen_atoms env next_id args =
   let rec loop acc env id = function
@@ -90,7 +148,31 @@ let freshen_clause id = function
               (Pos p' :: acc, env', id')
           | Neg p ->
               let (p', env', id') = freshen_predicate env_acc id_acc p in
-              (Neg p' :: acc, env', id'))
+              (Neg p' :: acc, env', id')
+          | Eq (e1, e2) ->
+            let (e1', env1, id1) = freshen_expr env_acc id_acc e1 in
+            let (e2', env2, id2) = freshen_expr env1 id1 e2 in
+            (Eq (e1', e2') :: acc, env2, id2)
+          | Neq (e1, e2) ->
+            let (e1', env1, id1) = freshen_expr env_acc id_acc e1 in
+            let (e2', env2, id2) = freshen_expr env1 id1 e2 in
+            (Neq (e1', e2') :: acc, env2, id2)
+          | Geq (e1, e2) ->
+            let (e1', env1, id1) = freshen_expr env_acc id_acc e1 in
+            let (e2', env2, id2) = freshen_expr env1 id1 e2 in
+            (Geq (e1', e2') :: acc, env2, id2)
+          | Leq (e1, e2) ->
+            let (e1', env1, id1) = freshen_expr env_acc id_acc e1 in
+            let (e2', env2, id2) = freshen_expr env1 id1 e2 in
+            (Leq (e1', e2') :: acc, env2, id2)
+          | LT (e1, e2) ->
+            let (e1', env1, id1) = freshen_expr env_acc id_acc e1 in
+            let (e2', env2, id2) = freshen_expr env1 id1 e2 in
+            (LT (e1', e2') :: acc, env2, id2)
+          | GT (e1, e2) ->
+            let (e1', env1, id1) = freshen_expr env_acc id_acc e1 in
+            let (e2', env2, id2) = freshen_expr env1 id1 e2 in
+            (GT (e1', e2') :: acc, env2, id2))
         body
         ([], env, id1)
     in
@@ -115,37 +197,68 @@ let matches (pool: Domainslib.Task.pool) (d : db) (pred : predicate) : Subst.sub
       |> parallel_filter_map pool (fun tup ->
             Subst.unify_opt pred.args tup)
 
-let join (pool: Domainslib.Task.pool) db acc_substs lits =
-  List.fold_left (fun acc_substs lit ->
-    let step theta =
-      match lit with
-      | Pos atom ->
-          let atom' = { atom with args = Subst.apply_atoms theta atom.args } in
-          matches pool db atom'
-          |> parallel_filter_map pool (fun theta' -> Subst.merge theta theta' |> Result.to_option)
-      | Neg atom ->
-          let atom' = { atom with args = Subst.apply_atoms theta atom.args } in
-          if matches pool db atom' = [] then
-            [theta]
-          else
-            []
-    in
-    List.concat_map step acc_substs
-  ) acc_substs lits
+let join (pool: Domainslib.Task.pool) (db: db) (acc_substs: Subst.subst list) (lits: lit list) =
+  List.fold_left
+    (fun acc_substs lit ->
+        let step theta =
+          match lit with
+          | Pos atom ->
+              let atom' = { atom with args = Subst.apply_atoms theta atom.args } in
+              matches pool db atom'
+              |> parallel_filter_map pool (fun theta' ->
+                  Subst.merge theta theta' |> Result.to_option)
 
+          | Neg atom ->
+              let atom' = { atom with args = Subst.apply_atoms theta atom.args } in
+              if matches pool db atom' = [] then [theta] else []
 
-(* --- Small-step evaluation --- *)
+          | Eq  (e1, e2) ->
+              (match Expr.eval_expr theta e1, Expr.eval_expr theta e2 with
+              | Some v1, Some v2 when v1 = v2 -> [theta]
+              | _ -> [])
+
+          | Neq (e1, e2) ->
+              (match Expr.eval_expr theta e1, Expr.eval_expr theta e2 with
+              | Some v1, Some v2 when v1 <> v2 -> [theta]
+              | _ -> [])
+
+          | Leq (e1, e2) ->
+              (match Expr.eval_expr theta e1, Expr.eval_expr theta e2 with
+              | Some v1, Some v2 when v1 <= v2 -> [theta]
+              | _ -> [])
+
+          | Geq (e1, e2) ->
+              (match Expr.eval_expr theta e1, Expr.eval_expr theta e2 with
+              | Some v1, Some v2 when v1 >= v2 -> [theta]
+              | _ -> [])
+
+          | LT  (e1, e2) ->
+              (match Expr.eval_expr theta e1, Expr.eval_expr theta e2 with
+              | Some v1, Some v2 when v1 <  v2 -> [theta]
+              | _ -> [])
+
+          | GT  (e1, e2) ->
+              (match Expr.eval_expr theta e1, Expr.eval_expr theta e2 with
+              | Some v1, Some v2 when v1 >  v2 -> [theta]
+              | _ -> [])
+        in
+        List.concat_map step acc_substs
+    )
+    acc_substs
+    lits
 
 let active_constants (d : db) : atom list =
   d
   |> PMap.bindings
   |> List.concat_map (fun (_pred, tuples) ->
-        List.concat_map
-          (List.filter_map (function
-            | Const c -> Some (Const c)
-            | Str  s -> Some (Str s)
-            | Var _  -> None))
-          (TupleSet.elements tuples))
+        TupleSet.elements tuples
+        |> List.concat_map (fun tuple ->
+             List.filter_map (function
+               | Sym c -> Some (Sym c)
+               | Str  s -> Some (Str s)
+               | Int _ -> None
+               | Var _ -> None
+               | Expr _ -> None) tuple))
   |> List.sort_uniq Stdlib.compare
 
 let cartesian_substs vars consts =
@@ -185,10 +298,13 @@ let fire_rule (pool: Domainslib.Task.pool) db clause : db =
   | Fact _ ->
   invalid_arg "fire_rule: expected Rule, got Fact"
 
-let fire_clause (pool: Domainslib.Task.pool) d = function
-  | Fact p        -> insert_fact p.name p.args d
-  | Rule (head, []) -> fire_empty_rule d head
-  | Rule _ as r   -> fire_rule pool d r
+let fire_clause (pool: Domainslib.Task.pool) db = function
+  | Fact head
+    when List.exists (function Var _ -> true | _ -> false) head.args ->
+      fire_empty_rule db head
+  | Fact head -> insert_fact head.name head.args db
+  | Rule (head, []) -> fire_empty_rule db head
+  | Rule _ as r -> fire_rule pool db r
 
 
 (* --- Until we hit a fixpoint -- **)
@@ -228,6 +344,12 @@ let print_clause_groups (groups : clause list IntMap.t) : unit =
                         Printf.sprintf "not %s(%s)"
                           p.name
                           (String.concat "," (List.map Ast_printer.string_of_atom p.args))
+                    | Eq (left, right) -> Printf.sprintf "%s = %s" (Ast_printer.string_of_expr left) (Ast_printer.string_of_expr right)
+                    | Neq (left, right) -> Printf.sprintf "%s /= %s" (Ast_printer.string_of_expr left) (Ast_printer.string_of_expr right)
+                    | Geq (left, right) -> Printf.sprintf "%s >= %s" (Ast_printer.string_of_expr left) (Ast_printer.string_of_expr right)
+                    | Leq (left, right) -> Printf.sprintf "%s <= %s" (Ast_printer.string_of_expr left) (Ast_printer.string_of_expr right)
+                    | LT (left, right) -> Printf.sprintf "%s < %s" (Ast_printer.string_of_expr left) (Ast_printer.string_of_expr right)
+                    | GT (left, right) -> Printf.sprintf "%s > %s" (Ast_printer.string_of_expr left) (Ast_printer.string_of_expr right)
                   ) body))
       ) clauses;
       print_endline ""

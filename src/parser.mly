@@ -4,26 +4,38 @@ open Ast
 
 %token <string> IDENT
 %token <string> STRING
-%token LPAREN RPAREN COMMA COLON_DASH DOT NOT OUTPUT INPUT
+%token <int> INT
+%token PLUS MINUS TIMES DIV POW
+%token LPAREN RPAREN COMMA COLON_DASH DOT
+%token EQ LEQ GREATERTHAN GEQ LESSTHAN NEQ
+%token NOT INPUT OUTPUT
 %token EOF
 
 %start program
 %type <program> program
 
+%left PLUS MINUS
+%left TIMES DIV
+%right POW
+%nonassoc UMINUS
+
 %%
 
-program: 
+program:
   | statements EOF { $1 }
 
 statements:
   | { [] }
   | clause statements { (Clause $1) :: $2 }
-  | output statements { (Output $1) :: $2 }
-  | input statements { (Input $1) :: $2 }
+  | directive statements { (Directive $1) :: $2 }
 
-clause: 
-  | fact { $1 }
-  | rule { $1 }
+clause:
+  | fact DOT { Fact $1 }
+  | predicate COLON_DASH body DOT { Rule ($1,$3) }
+
+directive:
+  | input { Input $1 }
+  | output { Output $1 }
 
 input:
   | DOT INPUT IDENT LPAREN STRING RPAREN { { name = $3; path = $5 }}
@@ -32,39 +44,45 @@ output:
   | DOT OUTPUT IDENT { $3 }
 
 fact:
-  | predicate DOT {
-      if List.exists (function Var _ -> true | _ -> false) $1.args then
-        Rule ($1, [])
-      else
-        Fact $1
-    }
-
-rule:
-  | predicate COLON_DASH DOT { Rule ($1, []) }
-  | predicate COLON_DASH body DOT { Rule ($1, $3) }
+  | predicate { $1 }
 
 predicate:
   | IDENT LPAREN args RPAREN { { name = $1; args = $3 } }
-
+  | IDENT { { name = $1; args = [] } }
 args:
-  | atom { [$1] }
-  | atom COMMA args { $1 :: $3 }
+  | arg { [$1] }
+  | arg COMMA args { $1 :: $3 }
 
-atom:
-  | id = IDENT {
-     if id = "_" then
-       Var id
-     else if Char.uppercase_ascii id.[0] = id.[0] then
-       Var id
-     else
-       Const id
-   }
+arg:
+  | expr { Expr $1 }
+  | IDENT {
+      if Char.uppercase_ascii $1.[0] = $1.[0]
+      then Var $1
+      else Sym $1
+    }
   | STRING { Str $1 }
 
 body:
-  | lit { [$1] }
-  | lit COMMA body { $1 :: $3 }
+  | literal { [$1] }
+  | literal COMMA body { $1 :: $3 }
 
-lit:
+literal:
   | predicate { Pos $1 }
   | NOT predicate { Neg $2 }
+  | expr EQ expr { Eq ($1,$3) }
+  | expr NEQ expr { Neq ($1,$3) }
+  | expr GEQ expr { Geq ($1,$3) }
+  | expr LEQ expr { Leq ($1,$3) }
+  | expr LESSTHAN expr { LT ($1,$3) }
+  | expr GREATERTHAN expr { GT ($1,$3) }
+
+expr:
+  | INT { EConst $1 }
+  | IDENT { EVar $1 }
+  | expr PLUS expr { EAdd ($1,$3) }
+  | expr MINUS expr { ESub ($1,$3) }
+  | expr TIMES expr { EMul ($1,$3) }
+  | expr DIV expr { EDiv ($1,$3) }
+  | expr POW expr { EPow ($1,$3) }
+  | MINUS expr %prec UMINUS { ENeg $2 }
+  | LPAREN expr RPAREN { $2 }

@@ -3,8 +3,9 @@ open Facts_parser
 }
 
 rule read = parse
-  | [' ' '\t' '\r']   { read lexbuf } 
+  | [' ' '\t' '\r']   { read lexbuf }
   | '\n'              { read lexbuf }
+  | ['0'-'9']+ as num { INT (int_of_string num)}
   | ','               { COMMA }
   | '"' ([^ '"'])* '"' as s {
       let len = String.length s in

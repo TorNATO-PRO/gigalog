@@ -89,6 +89,11 @@ let tests = [
   "neg_failure";
   "double_negation";
   "neg_empty";
+  "test_addition";
+  "test_multiplication";
+  "test_exponentiation";
+  "test_negation";
+  "test_combined";
 ]
 
 (* Main runner *)

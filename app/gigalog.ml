@@ -39,12 +39,12 @@ let parse_file filename =
   parse_lexbuf lexbuf
 
   let extend_program_with_facts (prog: Ast.program) : Ast.program =
-    let input_predicates = Ast.input_predicates prog in
+    let input_directives = Ast.input_directives prog in
     let new_facts =
       List.concat_map (fun input ->
         parse_fact_file input.path input.name
         |> List.map (fun clause -> Ast.Clause clause)
-      ) input_predicates
+      ) input_directives
     in
     new_facts @ prog
 
@@ -65,16 +65,15 @@ let output_db_to_file pred set =
 let execute_program program =
   let pool = Domainslib.Task.setup_pool ~num_domains:((Domain.recommended_domain_count ()) - 1) () in
   let db = Domainslib.Task.run pool (fun (_a: unit): Eval.db -> Eval.eval_program pool program) in
-  let output_preds = Ast.output_predicates program in
+  let output_directives = Ast.output_directives program in
   Domainslib.Task.teardown_pool pool;
 
   List.iter (fun pred ->
     match Eval.PMap.find_opt pred db with
     | Some set -> output_db_to_file pred set
     | None -> ()
-  ) output_preds
+  ) output_directives
 
-(* Entry point *)
 let () =
   if Array.length Sys.argv <> 2 then begin
     Printf.eprintf "Usage: %s <input file>\n" Sys.argv.(0);
@@ -82,6 +81,7 @@ let () =
   end;
   let filename = Sys.argv.(1) in
   let program = parse_file filename in
+  print_endline (Ast_printer.string_of_program program);
   let extended_program = extend_program_with_facts program in
   let semanticErrors = Semantic.errors extended_program in
   if List.is_empty semanticErrors then begin
