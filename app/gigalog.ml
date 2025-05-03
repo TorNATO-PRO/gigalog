@@ -52,16 +52,16 @@ let output_db_to_file pred set =
   let buffer = Buffer.create 1024 in
 
   List.iter (fun elems ->
-    List.iter (fun atom ->
+    let numElems = List.length elems in
+    List.iteri (fun idx atom ->
       Buffer.add_string buffer (Ast_printer.string_of_atom atom);
-      Buffer.add_string buffer " "
+      if idx <> numElems - 1 then Buffer.add_char buffer '\t'
     ) elems;
     Buffer.add_string buffer "\n"
   ) (Eval.TupleSet.elements set);
 
-  write_buffer_to_file (pred ^ ".txt") buffer 
-  
-      
+  write_buffer_to_file (pred ^ ".csv") buffer 
+
 let execute_program program =
   let pool = Domainslib.Task.setup_pool ~num_domains:((Domain.recommended_domain_count ()) - 1) () in
   let db = Domainslib.Task.run pool (fun (_a: unit): Eval.db -> Eval.eval_program pool program) in

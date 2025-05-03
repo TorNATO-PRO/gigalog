@@ -1,7 +1,7 @@
 (library
   (name gigaloglib)
   (modules lexer parser ast ast_printer dependency facts_parser facts_lexer semantic subst eval)
-  (libraries base domainslib)
+  (libraries base domainslib ocamlgraph)
   (preprocess (pps ppx_deriving.show)))
 
 (menhir

@@ -1,113 +1,151 @@
 open Ast
+open Graph
+
+type edge_kind = PosEdge | NegEdge
+
+module DependencyGraph = struct
+  module StringLabel = struct
+    type t = string
+    let compare = Stdlib.compare
+    let equal = (=)
+    let hash = Hashtbl.hash
+  end
+
+  module EdgeKind = struct
+    type t = edge_kind
+    let compare = Stdlib.compare
+    let hash = Hashtbl.hash
+    let equal = (=)
+    let default = PosEdge
+  end
+
+  include Imperative.Digraph.ConcreteLabeled(StringLabel)(EdgeKind)
+end
 
 module StringSet = Set.Make(String)
 module StringMap = Map.Make(String)
 
-type edge_kind = PosEdge | NegEdge
-
-type dependency_graph = (edge_kind * string) list StringMap.t
+type stratification_error =
+  | NegativeCycle of (string * edge_kind) list
 
 let empty_graph = StringMap.empty
 
 let add_edge from kind to_ g =
-  let edges = Option.value ~default:[] (StringMap.find_opt from g) in
-  StringMap.add from ((kind, to_) :: edges) g
+  DependencyGraph.add_edge_e g (DependencyGraph.E.create from kind to_)
 
-let build_graph (prog : program) : dependency_graph =
-  List.fold_left (fun g clause ->
+let build_graph (prog : program) : DependencyGraph.t =
+  let g = DependencyGraph.create () in
+
+  let add_vertex p =
+    if not (DependencyGraph.mem_vertex g p) then
+      DependencyGraph.add_vertex g p
+  in
+
+  List.iter (fun clause ->
     match clause with
-    | Fact _ -> g
+    | Fact p ->
+        add_vertex p.name
+
     | Rule (head, body) ->
-        List.fold_left (fun g lit ->
-          match lit with
-          | Pos p -> add_edge head.name PosEdge p.name g
-          | Neg p -> add_edge head.name NegEdge p.name g
-        ) g body
-  ) empty_graph (clauses prog)
+        add_vertex head.name;
+        List.iter (fun lit ->
+          let src, kind = match lit with
+            | Pos p -> p.name, PosEdge
+            | Neg p -> p.name, NegEdge
+          in
+          add_vertex src;
+          DependencyGraph.add_edge_e g (DependencyGraph.E.create src kind head.name)
+        ) body
+  ) (clauses prog);
+
+  g
 
 let string_of_edge = function
   | PosEdge, p -> p
   | NegEdge, p -> "~" ^ p
 
-let string_of_graph (graph : dependency_graph) : string =
-  StringMap.bindings graph
-  |> List.map (fun (pred, deps) ->
-      Printf.sprintf "%s -> {%s}" pred
-        (String.concat ", " (List.map string_of_edge deps))
+let string_of_graph (graph : DependencyGraph.t) : string =
+  let buffer = Buffer.create 128 in
+  DependencyGraph.iter_vertex (fun v ->
+    let edges = DependencyGraph.succ_e graph v in
+    if edges <> [] then (
+      let deps = 
+        List.map (fun edge ->
+          let dst = DependencyGraph.E.dst edge in
+          let label = DependencyGraph.E.label edge in
+          string_of_edge (label, dst)
+        ) edges
+      in
+      Buffer.add_string buffer (Printf.sprintf "%s -> {%s}\n" v (String.concat ", " deps))
     )
-  |> String.concat "\n"
+  ) graph;
+  Buffer.contents buffer
 
-let find_cycles (graph : dependency_graph) : (string list) list =
-  let rec dfs path visited node =
-    if List.mem node path then
-      [[node] @ (List.take_while (fun n -> n <> node) path)]
+let find_labeled_cycles (graph : DependencyGraph.t) : ((string * edge_kind) list) list =
+  let module SCC = Graph.Components.Make(DependencyGraph) in
+  let sccs = SCC.scc_list graph in
+
+  let rec dfs path visited node start incoming =
+    if List.exists (fun (n, _) -> n = node) path then
+      let cycle =
+        List.rev ((node, incoming) :: List.take_while (fun (n, _) -> n <> node) path)
+      in
+      [cycle]
     else if StringSet.mem node visited then
       []
     else
       let visited = StringSet.add node visited in
-      match StringMap.find_opt node graph with
-      | None -> []
-      | Some deps ->
-          List.fold_left (fun acc (_, dep) ->
-            acc @ (dfs (node :: path) visited dep)
-          ) [] deps
+      List.fold_left (fun acc edge ->
+        let dst = DependencyGraph.E.dst edge in
+        let label = DependencyGraph.E.label edge in
+        acc @ dfs ((node, incoming) :: path) visited dst start label
+      ) [] (DependencyGraph.succ_e graph node)
   in
-  StringMap.fold (fun node _ acc ->
-    acc @ (dfs [] StringSet.empty node)
-  ) graph []
 
-let check_stratification (graph : dependency_graph) : (unit, string) result =
-  let cycles = find_cycles graph in
-  let detect_negative_in_cycle cycle =
-    let rec has_negative_edge = function
-      | x :: y :: rest ->
-          let edges = Option.value ~default:[] (StringMap.find_opt x graph) in
-          if List.exists (fun (kind, tgt) -> kind = NegEdge && tgt = y) edges
-          then true
-          else has_negative_edge (y :: rest)
-      | _ -> false
-    in
-    has_negative_edge cycle
-  in
-  match List.find_opt detect_negative_in_cycle cycles with
-  | Some bad_cycle ->
-      Error (Printf.sprintf "Negative cycle detected: %s"
-               (String.concat " -> " bad_cycle))
-  | None ->
-      Ok ()
+  List.flatten (
+    List.map (fun component ->
+      match component with
+      | [] -> []
+      | nodes ->
+          List.flatten (
+            List.map (fun node -> dfs [] StringSet.empty node node PosEdge) nodes
+          )
+    ) sccs
+  )
 
-let stratify (g : dependency_graph) : string -> int =
-  (* build initial map containing **all** predicates *)
-  let strata =
-    StringMap.fold
-      (fun p edges acc ->
-        let acc = StringMap.update p (function _ -> Some 0) acc in
-        List.fold_left
-          (fun acc (_, q) -> StringMap.update q (function _ -> Some 0) acc)
-          acc edges)
-      g StringMap.empty
-  in
-  (* iterative relaxation *)
-  let rec relax changed strata =
-    let changed, strata =
-      StringMap.fold (fun p edges (changed, s) ->
-        List.fold_left (fun (changed, s) (k, q) ->
-          let p_str = Option.value ~default:0 (StringMap.find_opt p s) in
-          let q_str = Option.value ~default:0 (StringMap.find_opt q s) in
-          let wanted =
-            match k with
-            | PosEdge -> q_str
-            | NegEdge -> q_str + 1
+let check_stratification (graph : DependencyGraph.t) : (unit, stratification_error) result =
+  let cycles = find_labeled_cycles graph in
+  match List.find_opt (List.exists (fun (_, kind) -> kind = NegEdge)) cycles with
+  | Some bad_cycle -> Error (NegativeCycle bad_cycle)
+  | None -> Ok ()
+
+let stratify (graph : DependencyGraph.t) : ((string -> int), stratification_error) result =
+  match check_stratification graph with
+  | Error err -> Error err
+  | Ok () ->
+      let module Topo = Graph.Topological.Make(DependencyGraph) in
+      let stratum = ref StringMap.empty in
+
+      DependencyGraph.iter_vertex (fun v ->
+        stratum := StringMap.add v 0 !stratum
+      ) graph;
+
+      let order = Topo.fold (fun v acc -> v :: acc) graph [] |> List.rev in
+
+      List.iter (fun from ->
+        let from_stratum = StringMap.find from !stratum in
+        DependencyGraph.iter_succ_e (fun edge ->
+          let to_ = DependencyGraph.E.dst edge in
+          let label = DependencyGraph.E.label edge in
+          let to_stratum = StringMap.find to_ !stratum in
+          let candidate =
+            match label with
+            | PosEdge -> from_stratum
+            | NegEdge -> from_stratum + 1
           in
-          if wanted > p_str then
-            (true, StringMap.add p wanted s)
-          else
-            (changed, s)
-        ) (changed, s) edges
-      ) g (changed, strata)
-    in
-    if changed then relax false strata else strata
-  in
-  let final = relax false strata in
-  (* lookup function *)
-  fun p -> Option.value ~default:0 (StringMap.find_opt p final)
+          if candidate > to_stratum then
+            stratum := StringMap.add to_ candidate !stratum
+        ) graph from
+      ) order;
+
+      Ok (fun pred -> StringMap.find_opt pred !stratum |> Option.value ~default:0)
