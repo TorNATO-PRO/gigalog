@@ -191,7 +191,8 @@ let compute_new_tuples_for_rule pool db_total delta stratum_preds rule =
         List.mapi (fun i lit -> match lit with Pos p when List.mem p.name stratum_preds -> Some i | _ -> None) body
         |> List.filter_map Fun.id
       in
-      let new_tuples =
+      let existing = Option.value ~default:TupleSet.empty (PMap.find_opt head.name db_total) in
+      let new_tuples_set =
         List.fold_left (fun acc i ->
           let substs_before = join pool db_total [ [] ] (take i body) in
           let substs_i = List.concat_map (fun theta ->
@@ -202,12 +203,12 @@ let compute_new_tuples_for_rule pool db_total delta stratum_preds rule =
           ) substs_before in
           let substs_after = List.concat_map (fun theta_i -> join pool db_total [theta_i] (drop (i + 1) body)) substs_i in
           let tuples = List.map (fun theta -> Subst.apply_atoms theta head.args) substs_after in
-          acc @ tuples
-        ) [] rec_indices
-        |> List.sort_uniq Stdlib.compare
+          List.fold_left (fun acc tup ->
+            if not (TupleSet.mem tup existing) then TupleSet.add tup acc else acc
+          ) acc tuples
+        ) TupleSet.empty rec_indices
       in
-      let existing = Option.value ~default:TupleSet.empty (PMap.find_opt head.name db_total) in
-      List.filter (fun tup -> not (TupleSet.mem tup existing)) new_tuples
+      TupleSet.elements new_tuples_set
   | Fact _ -> []
 
 let fixpoint_stratum pool clauses d =
