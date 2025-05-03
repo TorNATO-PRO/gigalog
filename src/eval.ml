@@ -194,13 +194,13 @@ let compute_new_tuples_for_rule pool db_total delta stratum_preds rule =
       let existing = Option.value ~default:TupleSet.empty (PMap.find_opt head.name db_total) in
       let new_tuples_set =
         List.fold_left (fun acc i ->
+          (* Full DB *)
           let substs_before = join pool db_total [ [] ] (take i body) in
-          let substs_i = List.concat_map (fun theta ->
-            let lit_i = List.nth body i in
-            let atom_i' = match lit_i with Pos p -> { p with args = Subst.apply_atoms theta p.args } | _ -> failwith "expected Pos" in
-            let matches_i = matches pool delta atom_i' in
-            List.filter_map (fun theta' -> Subst.merge theta theta' |> Result.to_option) matches_i
-          ) substs_before in
+
+          (* Delta *)
+          let substs_i = join pool delta substs_before ([ List.nth body i ]) in
+
+          (* Full DB *)
           let substs_after = join pool db_total substs_i (drop (i + 1) body) in
           let tuples = List.map (fun theta -> Subst.apply_atoms theta head.args) substs_after in
           List.fold_left (fun acc tup ->
