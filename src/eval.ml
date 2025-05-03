@@ -201,7 +201,7 @@ let compute_new_tuples_for_rule pool db_total delta stratum_preds rule =
             let matches_i = matches pool delta atom_i' in
             List.filter_map (fun theta' -> Subst.merge theta theta' |> Result.to_option) matches_i
           ) substs_before in
-          let substs_after = List.concat_map (fun theta_i -> join pool db_total [theta_i] (drop (i + 1) body)) substs_i in
+          let substs_after = join pool db_total substs_i (drop (i + 1) body) in
           let tuples = List.map (fun theta -> Subst.apply_atoms theta head.args) substs_after in
           List.fold_left (fun acc tup ->
             if not (TupleSet.mem tup existing) then TupleSet.add tup acc else acc
