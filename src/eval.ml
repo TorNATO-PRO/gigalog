@@ -133,7 +133,7 @@ let join (pool: Domainslib.Task.pool) db acc_substs lits =
     List.concat_map step acc_substs
   ) acc_substs lits
 
-
+  
 (* --- Small-step evaluation --- *)
 
 let active_constants (d : db) : atom list =
@@ -189,7 +189,6 @@ let fire_clause (pool: Domainslib.Task.pool) d = function
   | Fact p        -> insert_fact p.name p.args d
   | Rule (head, []) -> fire_empty_rule d head
   | Rule _ as r   -> fire_rule pool d r
-
 
 (* --- Until we hit a fixpoint -- **)
 
@@ -248,10 +247,9 @@ let rec fixpoint_stratum (pool: Domainslib.Task.pool) (clauses : clause list) (d
 let eval_program (pool: Domainslib.Task.pool) (prog : program) : db =
   let clauses' = clauses prog in
   let graph = Dependency.build_graph prog in
-  match Dependency.check_stratification graph with
-  | Error msg -> failwith ("Stratification error: " ^ msg)
-  | Ok () ->
-      let stratum_of = Dependency.stratify graph in
+  match Dependency.stratify graph with
+  | Error (NegativeCycle _) -> failwith ("Stratification error: Negative Cycle Detected")
+  | Ok stratum_of ->
       let clause_groups = group_by_stratum clauses' stratum_of in
       let strata = IntMap.bindings clause_groups |> List.sort (fun (s1, _) (s2, _) -> compare s1 s2) in
       List.fold_left (fun db (_stratum, clauses) ->
