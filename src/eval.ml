@@ -278,11 +278,22 @@ let print_clause_groups groups =
         print_endline ""
       )
 
+let display_edge_label edge_label =
+  match edge_label with
+  | Dependency.NegEdge -> "-Neg->"
+  | Dependency.PosEdge -> "-Pos->"
+
+let display_negative_cycle (cycle: (string * Dependency.edge_kind) list): string = match cycle with
+  | ((x, _) :: _) -> List.map (fun (vertex, edge_label) -> vertex ^ (display_edge_label edge_label)) cycle
+    |> String.concat ""
+    |> fun a -> a ^ x
+  | [] -> ""
+
 let eval_program pool prog =
   let clauses' = clauses prog in
   let graph = Dependency.build_graph prog in
   match Dependency.stratify graph with
-  | Error (NegativeCycle _) -> failwith "Stratification error: Negative Cycle Detected"
+  | Error (NegativeCycle cycle) -> failwith ("Stratification error, negative cycle detected: " ^ display_negative_cycle cycle)
   | Ok stratum_of ->
       let clause_groups = group_by_stratum clauses' stratum_of in
       let strata = IntMap.bindings clause_groups |> List.sort (fun (s1, _) (s2, _) -> compare s1 s2) in
