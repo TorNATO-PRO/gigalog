@@ -211,29 +211,31 @@ let compute_new_tuples_for_rule pool db_total delta stratum_preds rule =
       TupleSet.elements new_tuples_set
   | Fact _ -> []
 
-let fixpoint_stratum pool clauses d =
-  let stratum_preds = stratum_predicates clauses in
-  (* Step 1: Apply all facts first *)
-  let facts = List.filter (function Fact _ -> true | _ -> false) clauses in
-  let db_with_facts = List.fold_left (fun db clause ->
-    let (cl', _) = freshen_clause 0 clause in
-    fire_clause pool db cl'
-  ) d facts in
-  (* Step 2: Apply non-recursive rules and rules with empty bodies using db_with_facts *)
-  let initial_clauses =
-    List.filter (fun cl -> match cl with
-      | Fact _ -> false (* Exclude facts as they are already applied *)
-      | Rule (_, body) -> body = [] || List.for_all (function Pos p -> not (List.mem p.name stratum_preds) | Neg _ -> true) body
-    ) clauses
-  in
-  let db_total = List.fold_left (fun db clause ->
-    let (cl', _) = freshen_clause 0 clause in
-    fire_clause pool db cl'
-  ) db_with_facts initial_clauses in
-  let initial_delta = PMap.filter (fun p _ -> List.mem p stratum_preds) db_total in
-  let rec loop db_total delta =
-    if PMap.for_all (fun _ ts -> TupleSet.is_empty ts) delta then db_total else
-    let new_delta =
+  let fixpoint_stratum pool clauses d =
+    let stratum_preds = stratum_predicates clauses in
+
+    (* Step 1: Apply all facts first *)
+    let facts = List.filter (function Fact _ -> true | _ -> false) clauses in
+    let db_with_facts = List.fold_left (fun db clause ->
+      let (cl', _) = freshen_clause 0 clause in
+      fire_clause pool db cl'
+    ) d facts in
+
+    (* Step 2: Apply non-recursive rules and rules with empty bodies using db_with_facts *)
+    let initial_clauses =
+      List.filter (fun cl -> match cl with
+        | Fact _ -> false (* Exclude facts as they are already applied *)
+        | Rule (_, body) -> body = [] || List.for_all (function Pos p -> not (List.mem p.name stratum_preds) | Neg _ -> true) body
+      ) clauses
+    in
+    let db_total = List.fold_left (fun db clause ->
+      let (cl', _) = freshen_clause 0 clause in
+      fire_clause pool db cl'
+    ) db_with_facts initial_clauses in
+    let initial_delta = PMap.filter (fun p _ -> List.mem p stratum_preds) db_total in
+  
+    (* Helper function to compute new delta *)
+    let compute_new_delta db_total delta =
       List.fold_left (fun new_delta p ->
         let rules_for_p =
           List.filter (fun cl -> match cl with Rule (head, body) -> head.name = p && List.exists (function Pos q -> List.mem q.name stratum_preds | _ -> false) body | _ -> false) clauses
@@ -247,10 +249,18 @@ let fixpoint_stratum pool clauses d =
         PMap.add p (TupleSet.of_list new_tuples_p) new_delta
       ) (PMap.map (fun _ -> TupleSet.empty) delta) stratum_preds
     in
-    let db_total' = PMap.fold (fun p ts db -> insert_facts p (TupleSet.elements ts) db) new_delta db_total in
-    loop db_total' new_delta
-  in
-  loop db_total initial_delta
+  
+    (* Recursive fold-like function - iterate till fixpoint *)
+    let rec iterate db_total delta =
+      if PMap.for_all (fun _ ts -> TupleSet.is_empty ts) delta then
+        db_total
+      else
+        let new_delta = compute_new_delta db_total delta in
+        let db_total' = PMap.fold (fun p ts db -> insert_facts p (TupleSet.elements ts) db) new_delta db_total in
+        iterate db_total' new_delta
+    in
+  
+    iterate db_total initial_delta
 
 let group_by_stratum prog stratum_of =
   List.fold_left (fun acc clause ->
