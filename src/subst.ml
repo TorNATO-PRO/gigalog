@@ -2,6 +2,10 @@ open Ast
 
 type subst = (string * atom) list
 
+let to_string substitutions = 
+    "{" ^ (List.map (fun (var, atom) -> var ^ " -> " ^ Ast_printer.string_of_atom atom) substitutions
+    |> String.concat ",") ^ "}"
+
 let apply_atom theta = function
   | Var v ->
       (* Find var v in the association list and replace it *)
